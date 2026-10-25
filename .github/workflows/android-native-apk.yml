@@ -1,0 +1,57 @@
+name: 🚀 Bahnpilot Native APK (Kotlin)
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'android-native/**'
+      - '.github/workflows/android-native-apk.yml'
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-native-apk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📥 Code holen
+        uses: actions/checkout@v4
+
+      - name: ☕ Java 17 einrichten
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: 📦 Node nicht nötig - Nativ ist Kotlin
+        run: echo "Nativ = Kotlin + Retrofit, kein npm"
+
+      - name: 🔨 Native Debug APK bauen
+        run: |
+          cd android-native
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: 📲 APK umbenennen
+        run: |
+          cd android-native/app/build/outputs/apk/debug
+          mv app-debug.apk bahnpilot-native-debug-${{ github.sha }}.apk
+          ls -lh *.apk
+
+      - name: 📤 Native APK als Artifact hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: bahnpilot-native-apk
+          path: android-native/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+          compression-level: 0
+
+      - name: 📊 Build-Info
+        run: |
+          echo "✅ Native APK gebaut — 100% Kotlin + Jetpack Compose"
+          echo "Kein WebView — echte Retrofit Calls zu v6.db.transport.rest"
+          ls -lh android-native/app/build/outputs/apk/debug/*.apk

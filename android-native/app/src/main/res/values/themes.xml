@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Bahnpilot" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">#07070A</item>
+        <item name="android:navigationBarColor">#07070A</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

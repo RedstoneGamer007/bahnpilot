@@ -6,7 +6,7 @@
 
 [![Live - Echtzeit](https://img.shields.io/badge/Live-Echtzeit-EC0000?style=for-the-badge)](#) [![MIT Lizenz](https://img.shields.io/badge/Lizenz-MIT-black?style=for-the-badge)](#) [![APK](https://img.shields.io/badge/APK-Automatisch%20via%20GitHub%20Actions-00C853?style=for-the-badge)](#) [![PWA](https://img.shields.io/badge/PWA-installierbar-4285F4?style=for-the-badge)](#)
 
-**[🌐 Live Demo](https://dein-name.github.io/bahnpilot/) • [📲 APK Bauen](./BUILD-APK.md) • [📖 Datenquelle](#-datenquelle)**
+**[🌐 Live Demo](https://dein-name.github.io/bahnpilot/) • [📲 APK Bauen](./BUILD-APK.md) • [🚀 Native App](./NATIVE-README.md) • [📖 Datenquelle](#-datenquelle)**
 
 </div>
 
@@ -49,7 +49,11 @@ Kurzfassung:
 
 # 3. Auf GitHub: Actions → "Bahnpilot APK Bauen" → 3 Min warten → APK downloaden
 ```
-Jeder Push auf `main` baut automatisch eine neue APK!
+Jeder Push auf `main` baut automatisch eine neue APK! → **Hybrid-APK** (WebView, `android/`) + **Native-APK** (Kotlin, `android-native/`)
+
+### 2b) Native vs. Hybrid — Du hast die Wahl!
+
+> **Hybrid (`android/`)** = Schneller WebView-Wrapper — deine Web-App als APK. **Native (`android-native/`)** = 100% Kotlin + Jetpack Compose — echte native UI, keine Webseite! Siehe **[NATIVE-README.md](./NATIVE-README.md)** für Details. Beide APKs sind parallel installierbar (`de.bahnpilot.app` vs `de.bahnpilot.app.native`).
 
 ### 3) Als PWA installieren (ohne APK)
 
