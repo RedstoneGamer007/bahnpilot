@@ -1,0 +1,18 @@
+{
+  "appId": "de.bahnpilot.app",
+  "appName": "Bahnpilot",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#07070A",
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#07070A"
+    }
+  }
+}

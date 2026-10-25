@@ -1,0 +1,33 @@
+{
+  "name": "bahnpilot",
+  "version": "1.0.0",
+  "description": "Bahnpilot — Open Source Bahn Navigator mit Echtzeit | PWA + Android APK",
+  "author": "Bahnpilot Contributors",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync:www": "mkdir -p www && cp index.html www/ && cp manifest.json www/ && cp -r icons www/ && cp sw.js www/ && echo 'www synced'",
+    "cap:init": "npx cap init Bahnpilot de.bahnpilot.app --web-dir=www",
+    "cap:add:android": "npx cap add android",
+    "cap:sync": "npm run sync:www && npx cap sync android",
+    "cap:copy": "npm run sync:www && npx cap copy android",
+    "cap:open:android": "npx cap open android",
+    "build:apk": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "build:apk:release": "npm run cap:sync && cd android && ./gradlew assembleRelease"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/keyboard": "^6.0.1",
+    "@capacitor/status-bar": "^6.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2",
+    "vite": "^5.4.0"
+  }
+}

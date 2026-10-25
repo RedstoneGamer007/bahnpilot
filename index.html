@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bahnpilot — Open Source Bahn Navigator • Echtzeit</title>
+<meta name="description" content="Bahnpilot: Der Open-Source Bahn Navigator für Deutschland. Routen planen, Verspätungen in Echtzeit, Abfahrtsmonitor – powered by Deutsche Bahn.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-512.png">
+<meta name="theme-color" content="#EC0000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bahnpilot">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter','system-ui','sans-serif'], mono: ['JetBrains Mono','monospace'] },
+      colors: {
+        dbred: '#EC0000',
+        lime: '#C8FF00',
+        ink: '#0A0A0F',
+        card: '#14141A',
+        card2: '#1C1C22',
+        muted: '#9CA3AF',
+      }
+    }
+  }
+}
+</script>
+<style>
+*{scrollbar-width:thin; scrollbar-color:#333 transparent}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:#333;border-radius:99px}
+.glass{backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.dot{box-shadow:0 0 0 6px rgba(236,0,0,.15)}
+.delay-pulse{animation:pulse-delay 1.5s infinite}
+@keyframes pulse-delay{0%,100%{opacity:1}50%{opacity:.5}}
+.shimmer{background:linear-gradient(90deg,#1c1c22 25%,#262631 37%,#1c1c22 63%);background-size:400% 100%;animation:shimmer 1.4s ease infinite}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
+</style>
+</head>
+<body class="bg-[#07070A] text-zinc-100 font-sans antialiased selection:bg-[#EC0000] selection:text-white">
+<!-- Top red line like DB -->
+<div class="h-[3px] w-full bg-gradient-to-r from-[#EC0000] via-[#FF3B30] to-[#FF7A00]"></div>
+
+<!-- Header -->
+<header class="sticky top-0 z-40 bg-[#07070A]/80 glass border-b border-zinc-800">
+  <div class="max-w-[1120px] mx-auto px-4 sm:px-6 h-[68px] flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-[#EC0000] flex items-center justify-center shrink-0">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M7 7V5a5 5 0 0 1 10 0v2"/><path d="M7 14h10"/><path d="M7 20h10"/><circle cx="8.5" cy="17" r="1" fill="white" stroke="none"/><circle cx="15.5" cy="17" r="1" fill="white" stroke="none"/></svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-[20px] font-black tracking-tight leading-none">BAHNPILOT</h1>
+          <span class="hidden sm:inline-flex text-[10px] font-bold tracking-widest bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1">OPEN SOURCE</span>
+          <span class="hidden md:inline-flex items-center gap-1.5 text-[11px] font-semibold bg-[#EC0000] text-white rounded-full px-2.5 py-1"><span class="w-2 h-2 bg-white rounded-full dot"></span> LIVE ECHTZEIT</span>
+        </div>
+        <p class="text-[12px] text-zinc-400 font-medium -mt-0.5 hidden sm:block">Dein Navigator für alle Züge in Deutschland — Verspätungen • Gleise • Umstiege</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <a href="#open-source" class="hidden sm:inline-flex items-center gap-2 text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-full px-4 py-2 transition">★ GitHub <span class="text-zinc-500">MIT</span></a>
+      <button id="btnHannover" class="inline-flex items-center gap-2 text-xs font-bold bg-white text-black hover:bg-zinc-100 rounded-full px-4 py-2.5 transition">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Hannover Hbf
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Hero / Intro -->
+<div class="max-w-[1120px] mx-auto px-4 sm:px-6 pt-8 pb-4">
+  <div class="grid lg:grid-cols-[1.15fr_.85fr] gap-4 items-stretch">
+    <div class="rounded-[24px] bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-900 border border-zinc-800 p-6 sm:p-8 relative overflow-hidden">
+      <div class="absolute -top-20 -right-20 w-[320px] h-[320px] bg-[#EC0000]/20 blur-[80px] rounded-full pointer-events-none"></div>
+      <div class="absolute -bottom-20 -left-20 w-[280px] h-[280px] bg-orange-500/10 blur-[70px] rounded-full pointer-events-none"></div>
+      <p class="inline-flex items-center gap-2 text-[11px] font-bold tracking-widest text-zinc-400 border border-zinc-800 bg-zinc-900 rounded-full px-3 py-1.5">⚡ ECHTZEIT • DB NAVIGATOR DATEN • OHNE TRACKING</p>
+      <h2 class="mt-4 text-[32px] sm:text-[38px] font-black tracking-tight leading-[0.95]">Finde <span class="text-[#EC0000]">jede Verbindung.</span><br>Sieh jede Verspätung.</h2>
+      <p class="mt-3 text-[14px] leading-6 text-zinc-400 max-w-[560px]">Bahnpilot ist der Open-Source Alternative zum DB Navigator — schnell, werbefrei und mit denselben Live-Daten. Routen planen, Gleise checken, Umstiege verstehen. 100% kostenlos.</p>
+      <div class="mt-5 flex flex-wrap gap-2 text-[12px] font-semibold">
+        <span class="bg-zinc-800 border border-zinc-700 rounded-full px-3 py-1.5">✓ ICE • IC • RE • RB • S-Bahn</span>
+        <span class="bg-zinc-800 border border-zinc-700 rounded-full px-3 py-1.5">✓ Live-Verspätung + Gleiswechsel</span>
+        <span class="bg-[#C8FF00] text-black rounded-full px-3 py-1.5">✓ Keine Anmeldung</span>
+      </div>
+    </div>
+    <div class="rounded-[24px] bg-[#EC0000] p-6 sm:p-7 text-white relative overflow-hidden flex flex-col justify-between">
+      <div class="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none"></div>
+      <div class="absolute -right-10 -bottom-10 w-48 h-48 bg-white/15 blur-[40px] rounded-full"></div>
+      <div>
+        <div class="inline-flex items-center gap-2 bg-white text-black rounded-full px-3 py-1 text-[11px] font-extrabold tracking-widest">▶ LIVE MONITOR</div>
+        <div class="mt-4 grid grid-cols-3 gap-3 text-center">
+          <div class="bg-white text-black rounded-2xl py-3">
+            <div class="text-[11px] font-bold tracking-widest opacity-60">ABFAHRTEN</div>
+            <div id="statDepartures" class="text-[22px] font-black leading-none mt-1">—</div>
+            <div class="text-[11px] font-semibold opacity-60">heute</div>
+          </div>
+          <div class="bg-black text-white rounded-2xl py-3 border border-white/10">
+            <div class="text-[11px] font-bold tracking-widest opacity-60">PÜNKTLICH</div>
+            <div id="statPunctual" class="text-[22px] font-black leading-none mt-1">—</div>
+            <div class="text-[11px] font-semibold opacity-60">Live Quote</div>
+          </div>
+          <div class="bg-white text-black rounded-2xl py-3">
+            <div class="text-[11px] font-bold tracking-widest opacity-60">VERSPÄTET</div>
+            <div id="statDelayed" class="text-[22px] font-black leading-none mt-1">—</div>
+            <div class="text-[11px] font-semibold opacity-60">+2 Min</div>
+          </div>
+        </div>
+      </div>
+      <div class="mt-6 bg-black/20 backdrop-blur rounded-2xl p-4 border border-white/15">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold tracking-widest opacity-80">NÄCHSTE ABFAHRT • HANNOVER HBF</span>
+          <span class="text-[11px] font-mono bg-white text-black rounded-full px-2 py-1">GLEIS 6 • LIVE</span>
+        </div>
+        <div id="miniBoard" class="mt-3 space-y-2 text-sm">
+          <div class="flex justify-between items-center bg-white text-black rounded-xl px-3 py-2.5 font-semibold"><span>ICE 1556 → Berlin</span><span class="font-mono text-[#EC0000]">18:42 <span class="text-emerald-600 text-xs">pünktlich</span></span></div>
+          <div class="flex justify-between items-center bg-black/30 rounded-xl px-3 py-2.5 font-semibold border border-white/10"><span>RE 2 → Göttingen</span><span class="font-mono">18:47 <span class="text-amber-300 text-xs">+4</span></span></div>
+        </div>
+        <button onclick="document.getElementById('tabDepartures').click()" class="mt-3 w-full bg-white text-black rounded-full py-2.5 text-sm font-bold hover:bg-zinc-100 transition">Abfahrtsmonitor öffnen →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="max-w-[1120px] mx-auto px-4 sm:px-6 mt-2">
+  <div class="inline-flex p-1 bg-zinc-900 border border-zinc-800 rounded-full">
+    <button id="tabJourneys" class="px-5 sm:px-6 py-2.5 rounded-full text-sm font-bold bg-white text-black shadow">🔍 Verbindung suchen</button>
+    <button id="tabDepartures" class="px-5 sm:px-6 py-2.5 rounded-full text-sm font-bold text-zinc-400 hover:text-white">📋 Abfahrtsmonitor</button>
+  </div>
+</div>
+
+<!-- Main Content -->
+<main class="max-w-[1120px] mx-auto px-4 sm:px-6 mt-6 pb-10 grid lg:grid-cols-[1fr_360px] gap-6">
+
+  <!-- Left: Search + Results -->
+  <div class="space-y-4">
+
+    <!-- Search Card -->
+    <div id="panelJourneys" class="bg-[#14141A] border border-zinc-800 rounded-[24px] p-4 sm:p-6">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-black tracking-widest">VERBINDUNG SUCHEN</h3>
+        <span class="text-[11px] font-mono bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1">v6.db.transport.rest • Echtzeit</span>
+      </div>
+
+      <div class="mt-5 grid gap-3">
+        <!-- Von -->
+        <div class="relative">
+          <label class="text-[11px] font-bold tracking-widest text-zinc-400">VON</label>
+          <div class="mt-1.5 relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-[#EC0000] flex items-center justify-center text-white text-xs font-black">A</span>
+            <input id="inputFrom" placeholder="z. B. Hannover Hbf" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-14 pr-12 py-3.5 text-[15px] font-semibold placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800 transition" autocomplete="off">
+            <button id="btnFromNear" title="Stationen in der Nähe" class="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 flex items-center justify-center text-zinc-400">◎</button>
+            <div id="suggestFrom" class="hidden absolute z-20 mt-2 w-full bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"></div>
+          </div>
+        </div>
+
+        <!-- Swap -->
+        <div class="flex justify-center -my-1 relative z-10">
+          <button id="btnSwap" class="w-10 h-10 rounded-full bg-white text-black border-4 border-[#14141A] flex items-center justify-center hover:rotate-180 transition duration-300">⇅</button>
+        </div>
+
+        <!-- Nach -->
+        <div class="relative">
+          <label class="text-[11px] font-bold tracking-widest text-zinc-400">NACH</label>
+          <div class="mt-1.5 relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-white text-xs font-black">B</span>
+            <input id="inputTo" placeholder="z. B. Berlin Hbf" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-14 pr-12 py-3.5 text-[15px] font-semibold placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600 focus:bg-zinc-800 transition" autocomplete="off">
+            <div id="suggestTo" class="hidden absolute z-20 mt-2 w-full bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"></div>
+          </div>
+        </div>
+
+        <!-- Date + Options -->
+        <div class="grid sm:grid-cols-[1.2fr_.8fr] gap-3">
+          <div>
+            <label class="text-[11px] font-bold tracking-widest text-zinc-400">ABFAHRT</label>
+            <div class="mt-1.5 flex gap-2">
+              <input id="inputWhen" type="datetime-local" class="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-3 text-sm font-semibold focus:outline-none focus:border-zinc-600">
+              <button id="btnNow" class="px-4 rounded-2xl bg-zinc-800 border border-zinc-700 text-sm font-bold hover:bg-zinc-700">Jetzt</button>
+            </div>
+          </div>
+          <div>
+            <label class="text-[11px] font-bold tracking-widest text-zinc-400">OPTIONEN</label>
+            <div class="mt-1.5 flex gap-2">
+              <label class="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-3 flex items-center gap-2 text-sm font-semibold cursor-pointer hover:bg-zinc-800">
+                <input id="chkTransfers" type="checkbox" class="accent-[#EC0000]"> <span>Direkt</span>
+              </label>
+              <select id="selResults" class="bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-3 text-sm font-semibold">
+                <option value="5">5 Verbindungen</option>
+                <option value="8">8 Verbindungen</option>
+                <option value="10">10 Verbindungen</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <button id="btnSearch" class="mt-1 w-full bg-[#EC0000] hover:bg-[#c90000] text-white rounded-full py-4 text-[15px] font-black tracking-wide flex items-center justify-center gap-2 transition">
+          <span id="btnSearchIcon">⌕</span> Verbindung suchen
+          <span id="btnSearchSpinner" class="hidden w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+        </button>
+        <p class="text-center text-[11px] text-zinc-500 font-medium">Enter drücken zum Suchen • Daten von transport.rest • Ohne Gewähr</p>
+      </div>
+    </div>
+
+    <!-- Departures Panel (hidden) -->
+    <div id="panelDepartures" class="hidden bg-[#14141A] border border-zinc-800 rounded-[24px] p-4 sm:p-6">
+      <div class="flex items-center justify-between gap-3">
+        <h3 class="text-sm font-black tracking-widest">ABFAHRTSMONITOR</h3>
+        <span class="text-[11px] font-bold bg-emerald-500 text-black rounded-full px-2.5 py-1">LIVE</span>
+      </div>
+      <div class="mt-5 relative">
+        <label class="text-[11px] font-bold tracking-widest text-zinc-400">BAHNHOF / HALTESTELLE</label>
+        <div class="mt-1.5 relative">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white text-black flex items-center justify-center">◉</span>
+          <input id="inputStation" placeholder="z. B. Hannover Hbf" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-14 pr-28 py-3.5 text-[15px] font-semibold placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600" autocomplete="off">
+          <button id="btnDepSearch" class="absolute right-2 top-1/2 -translate-y-1/2 bg-[#EC0000] hover:bg-[#c90000] text-white rounded-full px-4 py-2 text-sm font-bold">Abfragen</button>
+          <div id="suggestStation" class="hidden absolute z-20 mt-2 w-full bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"></div>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <button data-station="8000152" class="quickStation flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-full px-3 py-2 text-xs font-bold">Hannover Hbf</button>
+          <button data-station="8011160" class="quickStation flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-full px-3 py-2 text-xs font-bold">Berlin Hbf</button>
+          <button data-station="8000105" class="quickStation flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-full px-3 py-2 text-xs font-bold">Frankfurt Hbf</button>
+          <button data-station="8000207" class="quickStation flex-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-full px-3 py-2 text-xs font-bold hidden sm:block">Köln Hbf</button>
+        </div>
+      </div>
+      <div id="departuresMeta" class="mt-4 hidden flex items-center justify-between text-xs text-zinc-400 border-y border-zinc-800 py-2">
+        <span id="depMetaLeft"></span><button id="btnDepRefresh" class="bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1 font-bold hover:bg-zinc-800">↻ Aktualisieren</button>
+      </div>
+      <div id="departuresList" class="mt-4 space-y-2"></div>
+      <div id="departuresEmpty" class="mt-6 text-center text-sm text-zinc-500">Gib einen Bahnhof ein und klicke auf Abfragen — wir zeigen Abfahrten in Echtzeit mit Verspätungen & Gleisen.</div>
+    </div>
+
+    <!-- Results Header -->
+    <div id="resultsHeader" class="hidden flex items-center justify-between">
+      <h3 class="text-sm font-black tracking-widest"><span id="resultsCount">0</span> VERBINDUNGEN • <span id="resultsSub" class="text-zinc-400 font-bold">Echtzeit</span></h3>
+      <div class="flex items-center gap-2">
+        <span id="resultsUpdated" class="text-[11px] font-mono text-zinc-500"></span>
+        <button id="btnRefreshAll" class="text-xs font-bold bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1.5 hover:bg-zinc-800">↻ Alle aktualisieren</button>
+      </div>
+    </div>
+
+    <!-- Journey Results -->
+    <div id="journeysList" class="space-y-3"></div>
+    <div id="journeysEmpty" class="bg-[#14141A] border border-dashed border-zinc-800 rounded-[24px] p-8 text-center">
+      <div class="w-12 h-12 mx-auto rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xl">🚆</div>
+      <h4 class="mt-3 font-bold">Bereit zum Abfahren?</h4>
+      <p class="mt-1 text-sm text-zinc-400 max-w-[420px] mx-auto">Suche oben eine Verbindung — z. B. <button class="underline decoration-dotted" onclick="fillExample('Hannover Hbf','Berlin Hbf')">Hannover → Berlin</button> oder <button class="underline decoration-dotted" onclick="fillExample('Hamburg Hbf','München Hbf')">Hamburg → München</button>. Wir zeigen dir alle Umstiege, Verspätungen und Gleise live.</p>
+    </div>
+    <div id="journeysError" class="hidden bg-red-950/30 border border-red-900 rounded-2xl p-4 text-sm"></div>
+
+  </div>
+
+  <!-- Right: Live Details & Info -->
+  <div class="space-y-4">
+    <!-- Trip Detail -->
+    <div id="tripDetail" class="bg-[#14141A] border border-zinc-800 rounded-[24px] p-5 sticky top-[76px]">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs font-black tracking-widest">LIVE DETAILS</h3>
+        <span class="text-[10px] font-bold tracking-widest bg-zinc-900 border border-zinc-800 rounded-full px-2.5 py-1">HAFAS • REALTIME</span>
+      </div>
+      <div id="tripDetailEmpty" class="mt-6 text-center py-8">
+        <div class="w-14 h-14 mx-auto rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-2xl">🛰️</div>
+        <p class="mt-3 text-sm font-bold">Wähle eine Verbindung</p>
+        <p class="text-xs text-zinc-500 mt-1 leading-5">Tippe auf eine Verbindung links, um alle Halte, Verspätungen und Gleiswechsel im Detail zu sehen — inkl. Live-Aktualisierung.</p>
+        <div class="mt-4 bg-zinc-900 border border-zinc-800 rounded-2xl p-3 text-left">
+          <div class="text-[11px] font-bold tracking-widest text-zinc-400">SO FUNKTIONIERT ECHTZEIT</div>
+          <ul class="mt-2 space-y-1.5 text-xs text-zinc-400 leading-5">
+            <li>● <b class="text-zinc-200">Grün = pünktlich</b>, Gelb = +2–5 Min, Rot = stark verspätet</li>
+            <li>● Gleiswechsel werden <b class="text-zinc-200">rot markiert</b></li>
+            <li>● Mit <b class="text-zinc-200">Live aktualisieren</b> holst du neueste DB-Daten</li>
+          </ul>
+        </div>
+      </div>
+      <div id="tripDetailContent" class="hidden"></div>
+    </div>
+
+    <!-- Open Source Card -->
+    <div id="open-source" class="bg-white text-black rounded-[24px] p-6">
+      <div class="inline-flex items-center gap-2 bg-black text-white rounded-full px-3 py-1 text-[11px] font-black tracking-widest">⬢ OPEN SOURCE</div>
+      <h3 class="mt-3 text-[20px] font-black leading-none tracking-tight">Bahnpilot gehört dir.</h3>
+      <p class="mt-2 text-[13px] leading-5 text-zinc-600">MIT-Lizenz • Kein Tracking • Keine Werbung • Code auf GitHub • Daten von <b>transport.rest</b> (Community-Wrapper um DB Navigator / bahn.de). Selbst hosten in 2 Minuten.</p>
+      <div class="mt-4 grid grid-cols-2 gap-2 text-xs font-bold">
+        <a href="#" class="bg-black text-white rounded-full py-2.5 text-center hover:bg-zinc-800">GitHub ansehen</a>
+        <a href="#" class="bg-zinc-100 border border-zinc-200 rounded-full py-2.5 text-center hover:bg-zinc-200">Selbst hosten</a>
+      </div>
+      <div class="mt-4 bg-zinc-50 border border-zinc-200 rounded-2xl p-3">
+        <div class="text-[11px] font-bold tracking-widest text-zinc-500">API CREDITS</div>
+        <div class="mt-1 text-xs leading-5 text-zinc-600">Datenquelle: <b>v6.db.transport.rest</b> von der public-transport Community (AGPL). Deutsche Bahn HAFAS / Vendo APIs. Rate-Limit 100 Req/Min.</div>
+        <div class="mt-2 flex flex-wrap gap-1.5">
+          <span class="bg-black text-white rounded-full px-2.5 py-1 text-[11px] font-bold">MIT</span>
+          <span class="bg-zinc-900 text-white rounded-full px-2.5 py-1 text-[11px] font-bold">PWA-ready</span>
+          <span class="bg-[#EC0000] text-white rounded-full px-2.5 py-1 text-[11px] font-bold">Echtzeit</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <div class="bg-[#14141A] border border-zinc-800 rounded-[24px] p-6">
+      <h4 class="text-xs font-black tracking-widest">WIE ES FUNKTIONIERT</h4>
+      <ol class="mt-4 space-y-3 text-sm">
+        <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-black shrink-0">1</span><span class="text-zinc-300"><b class="text-white">Bahnhof suchen</b> — Autocomplete über DB-Stationsdatenbank (800k+ Halte)</span></li>
+        <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-black shrink-0">2</span><span class="text-zinc-300"><b class="text-white">Verbindung wählen</b> — HAFAS-Routing mit Umstiegen, Fußwegen, Fahrtzeiten</span></li>
+        <li class="flex gap-3"><span class="w-7 h-7 rounded-full bg-[#EC0000] text-white flex items-center justify-center text-xs font-black shrink-0">3</span><span class="text-zinc-300"><b class="text-white">Live verfolgen</b> — Verspätungen, Gleise, Ausfälle direkt aus DB Navigator API</span></li>
+      </ol>
+    </div>
+  </div>
+</main>
+
+<footer class="border-t border-zinc-800 mt-6 py-6">
+  <div class="max-w-[1120px] mx-auto px-4 sm:px-6 flex flex-col sm:flex-row gap-3 justify-between text-xs text-zinc-500">
+    <span>© 2026 Bahnpilot — Open Source Bahn Navigator • Made with ♥ in Hannover • <a class="underline" href="#">Impressum</a> • <a class="underline" href="#">Datenschutz</a></span>
+    <span class="font-mono">Stand: <span id="footerTime"></span> • transport.rest • DB Navigator Daten</span>
+  </div>
+</footer>
+
+<script>
+const API = 'https://v6.db.transport.rest';
+let fromStation = null, toStation = null, stationForBoard = null;
+let lastJourneys = [];
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+function setFooterTime(){ $('#footerTime').textContent = new Date().toLocaleString('de-DE', {dateStyle:'short', timeStyle:'medium'}); }
+setFooterTime(); setInterval(setFooterTime, 60000);
+
+// Default datetime to now +5min
+function setNow(){
+  const d = new Date(Date.now()+5*60000);
+  d.setSeconds(0,0);
+  const pad = n=>String(n).padStart(2,'0');
+  $('#inputWhen').value = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+setNow();
+$('#btnNow').addEventListener('click', setNow);
+
+// Tabs
+function activateTab(which){
+  const isJ = which==='journeys';
+  $('#tabJourneys').className = isJ ? 'px-5 sm:px-6 py-2.5 rounded-full text-sm font-bold bg-white text-black shadow' : 'px-5 sm:px-6 py-2.5 rounded-full text-sm font-bold text-zinc-400 hover:text-white';
+  $('#tabDepartures').className = !isJ ? 'px-5 sm:px-6 py-2.5 rounded-full text-sm font-bold bg-white text-black shadow' : 'px-5 sm:px-6 py-2.5 rounded-full text-sm font-bold text-zinc-400 hover:text-white';
+  $('#panelJourneys').classList.toggle('hidden', !isJ);
+  $('#panelDepartures').classList.toggle('hidden', isJ);
+  $('#resultsHeader').classList.toggle('hidden', !isJ || !lastJourneys.length);
+  $('#journeysList').classList.toggle('hidden', !isJ);
+  $('#journeysEmpty').classList.toggle('hidden', !isJ || lastJourneys.length>0 || $('#journeysError').textContent);
+  // keep journeys list hidden in departures mode via css? we toggle above
+  if(!isJ){
+    // hide journey elements
+    $('#journeysList').style.display='none';
+    $('#journeysEmpty').style.display='none';
+    $('#resultsHeader').style.display='none';
+  } else {
+    $('#journeysList').style.display='';
+    if(lastJourneys.length===0 && !$('#journeysError').textContent) $('#journeysEmpty').style.display='';
+    if(lastJourneys.length>0) $('#resultsHeader').style.display='flex';
+  }
+}
+$('#tabJourneys').addEventListener('click', ()=>activateTab('journeys'));
+$('#tabDepartures').addEventListener('click', ()=>activateTab('departures'));
+
+// Swap
+$('#btnSwap').addEventListener('click', ()=>{
+  const a = $('#inputFrom').value, b = $('#inputTo').value;
+  $('#inputFrom').value = b; $('#inputTo').value = a;
+  const s = fromStation; fromStation = toStation; toStation = s;
+});
+
+// Helpers
+function fmtTime(iso, withDate=false){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  const t = d.toLocaleTimeString('de-DE',{hour:'2-digit', minute:'2-digit'});
+  if(!withDate) return t;
+  return d.toLocaleString('de-DE',{weekday:'short', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+}
+function fmtDuration(seconds){
+  if(seconds==null) return '—';
+  const m = Math.round(seconds/60);
+  const h = Math.floor(m/60), mm = m%60;
+  if(h>0) return `${h} Std ${mm} Min`;
+  return `${mm} Min`;
+}
+function delayMinutes(planned, prognosed){
+  if(!planned || !prognosed) return 0;
+  return Math.round((new Date(prognosed)-new Date(planned))/60000);
+}
+function delayBadge(delay){
+  if(delay==null || delay===0) return '<span class="inline-flex items-center gap-1 bg-emerald-500 text-black rounded-full px-2 py-1 text-[11px] font-black">✓ pünktlich</span>';
+  if(delay>0 && delay<=5) return `<span class="inline-flex bg-amber-400 text-black rounded-full px-2 py-1 text-[11px] font-black">+${delay} Min</span>`;
+  if(delay>5) return `<span class="inline-flex bg-[#EC0000] text-white rounded-full px-2 py-1 text-[11px] font-black delay-pulse">+${delay} Min verspätet</span>`;
+  if(delay<0) return `<span class="inline-flex bg-sky-400 text-black rounded-full px-2 py-1 text-[11px] font-black">${delay} Min früh</span>`;
+  return '';
+}
+function platformDisplay(planned, prognosed){
+  if(!planned && !prognosed) return '';
+  if(prognosed && planned && prognosed!==planned) return `<span class="line-through opacity-50">Gl. ${planned}</span> <span class="bg-[#EC0000] text-white rounded-full px-2 py-0.5 text-[11px] font-black">Gl. ${prognosed} ▲</span>`;
+  const p = prognosed || planned;
+  return `<span class="bg-zinc-800 border border-zinc-700 rounded-full px-2.5 py-1 text-[11px] font-bold">Gl. ${p}</span>`;
+}
+
+// Autocomplete
+let acTimer=null;
+function setupAutocomplete(inputEl, suggestEl, onPick){
+  async function fetchSuggest(q){
+    if(!q || q.length<2){ suggestEl.classList.add('hidden'); return; }
+    try{
+      const r = await fetch(`${API}/locations?query=${encodeURIComponent(q)}&results=6&language=de`);
+      if(!r.ok) throw new Error(r.statusText);
+      const data = await r.json();
+      if(!data.length){ suggestEl.innerHTML=`<div class="p-3 text-sm text-zinc-400">Keine Treffer für „${q}“</div>`; suggestEl.classList.remove('hidden'); return; }
+      suggestEl.innerHTML = data.map(s=>{
+        const name = s.name || s.id;
+        const sub = [s.station?.name && s.station.name!==name ? s.station.name : null, s.id].filter(Boolean).join(' • ');
+        return `<button data-id="${s.id}" data-name="${name.replace(/"/g,'&quot;')}" class="w-full text-left px-4 py-3 hover:bg-zinc-800 flex items-center justify-between gap-3 border-b border-zinc-800 last:border-0">
+          <span><span class="font-bold text-sm">${name}</span><span class="block text-xs text-zinc-500">${sub}</span></span><span class="text-zinc-500">›</span>
+        </button>`;
+      }).join('');
+      suggestEl.classList.remove('hidden');
+      suggestEl.querySelectorAll('button').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          inputEl.value = btn.dataset.name;
+          suggestEl.classList.add('hidden');
+          onPick({id:btn.dataset.id, name:btn.dataset.name});
+        });
+      });
+    }catch(e){
+      suggestEl.innerHTML=`<div class="p-3 text-xs text-red-400">Fehler: ${e.message}</div>`; suggestEl.classList.remove('hidden');
+    }
+  }
+  inputEl.addEventListener('input', ()=>{
+    clearTimeout(acTimer);
+    acTimer=setTimeout(()=>fetchSuggest(inputEl.value.trim()), 220);
+    // clear selection if user types
+    // we keep but will require explicit pick; allow free text? For journeys we need ID — so we reset if text changes manually
+  });
+  inputEl.addEventListener('focus', ()=>{ if(inputEl.value.trim().length>=2) fetchSuggest(inputEl.value.trim()); });
+  document.addEventListener('click', (e)=>{ if(!suggestEl.contains(e.target) && e.target!==inputEl) suggestEl.classList.add('hidden'); });
+}
+setupAutocomplete($('#inputFrom'), $('#suggestFrom'), s=>{ fromStation=s; });
+setupAutocomplete($('#inputTo'), $('#suggestTo'), s=>{ toStation=s; });
+setupAutocomplete($('#inputStation'), $('#suggestStation'), s=>{ stationForBoard=s; $('#inputStation').value=s.name; });
+
+// Allow manual enter without picking: try to resolve by first result
+async function resolveStationByQuery(q){
+  if(!q) return null;
+  const r = await fetch(`${API}/locations?query=${encodeURIComponent(q)}&results=1&language=de`);
+  if(!r.ok) throw new Error('Stationssuche fehlgeschlagen');
+  const data = await r.json();
+  if(!data.length) return null;
+  return {id:data[0].id, name:data[0].name};
+}
+
+// Journeys search
+async function searchJourneys(){
+  // resolve if needed
+  let fromId = fromStation?.id;
+  let toId = toStation?.id;
+  const fromQ = $('#inputFrom').value.trim();
+  const toQ = $('#inputTo').value.trim();
+  if(!fromQ || !toQ){
+    showError('Bitte Start und Ziel eingeben.');
+    return;
+  }
+  $('#btnSearch').disabled=true;
+  $('#btnSearchSpinner').classList.remove('hidden');
+  $('#btnSearchIcon').classList.add('hidden');
+  $('#journeysError').classList.add('hidden');
+  $('#journeysError').textContent='';
+
+  try{
+    if(!fromId){
+      const s = await resolveStationByQuery(fromQ);
+      if(!s) throw new Error(`Start „${fromQ}“ nicht gefunden`);
+      fromStation=s; fromId=s.id;
+    }
+    if(!toId){
+      const s = await resolveStationByQuery(toQ);
+      if(!s) throw new Error(`Ziel „${toQ}“ nicht gefunden`);
+      toStation=s; toId=s.id;
+    }
+    const when = $('#inputWhen').value ? new Date($('#inputWhen').value).toISOString() : new Date().toISOString();
+    const results = $('#selResults').value;
+    const transfers = $('#chkTransfers').checked ? 0 : -1;
+
+    const url = `${API}/journeys?from=${encodeURIComponent(fromId)}&to=${encodeURIComponent(toId)}&departure=${encodeURIComponent(when)}&results=${results}&transfers=${transfers}&language=de&remarks=true&stopovers=true`;
+    const resp = await fetch(url);
+    if(!resp.ok){
+      const txt = await resp.text();
+      throw new Error(`API Fehler ${resp.status}: ${txt.slice(0,300)}`);
+    }
+    const data = await resp.json();
+    if(!data.journeys || !data.journeys.length){
+      showError('Keine Verbindungen gefunden. Versuch eine andere Zeit oder nahen Bahnhof.');
+      lastJourneys=[]; renderJourneys();
+      return;
+    }
+    lastJourneys = data.journeys;
+    renderJourneys();
+    activateTab('journeys');
+  }catch(e){
+    showError(e.message);
+  }finally{
+    $('#btnSearch').disabled=false;
+    $('#btnSearchSpinner').classList.add('hidden');
+    $('#btnSearchIcon').classList.remove('hidden');
+  }
+}
+function showError(msg){
+  const el=$('#journeysError');
+  el.textContent=msg;
+  el.classList.remove('hidden');
+  $('#journeysEmpty').classList.add('hidden');
+}
+
+function renderJourneys(){
+  const list = $('#journeysList');
+  const header = $('#resultsHeader');
+  if(!lastJourneys.length){
+    list.innerHTML='';
+    header.classList.add('hidden');
+    header.style.display='none';
+    $('#journeysEmpty').classList.remove('hidden');
+    $('#journeysEmpty').style.display='';
+    return;
+  }
+  $('#journeysEmpty').classList.add('hidden');
+  header.classList.remove('hidden');
+  header.style.display='flex';
+  $('#resultsCount').textContent = lastJourneys.length;
+  $('#resultsSub').textContent = `${fromStation?.name || ''} → ${toStation?.name || ''}`;
+  $('#resultsUpdated').textContent = `Stand ${new Date().toLocaleTimeString('de-DE',{hour:'2-digit', minute:'2-digit'})} • Live`;
+
+  list.innerHTML = lastJourneys.map((j, idx)=>{
+    const first = j.legs.find(l=>!l.walking) || j.legs[0];
+    const last = [...j.legs].reverse().find(l=>!l.walking) || j.legs[j.legs.length-1];
+    const depPlanned = first?.departure;
+    const depProgn = first?.departureDelay!=null ? new Date(new Date(first.departure).getTime()+first.departureDelay*1000).toISOString() : first?.departure;
+    const arrPlanned = last?.arrival;
+    const arrDelay = last?.arrivalDelay;
+    const arrProgn = arrDelay!=null ? new Date(new Date(last.arrival).getTime()+arrDelay*1000).toISOString() : last.arrival;
+    const depDelay = first?.departureDelay!=null ? Math.round(first.departureDelay/60) : 0;
+    const arrDelayMin = arrDelay!=null ? Math.round(arrDelay/60) : 0;
+    const duration = fmtDuration((new Date(last.arrival)-new Date(first.departure))/1000);
+
+    const cancelled = j.legs.some(l=>l.cancelled);
+    const legsIcons = j.legs.filter(l=>!l.walking).map(l=>{
+      const name = l.line?.name || l.line?.product || 'Zug';
+      const color = productColor(l.line?.product);
+      return `<span class="inline-flex items-center gap-1 ${color} rounded-full px-2.5 py-1 text-[11px] font-black">${name}</span>`;
+    }).join(' <span class="text-zinc-600">→</span> ');
+
+    // delay summary
+    let delaySummary = '';
+    if(cancelled) delaySummary = '<span class="bg-[#EC0000] text-white rounded-full px-2.5 py-1 text-xs font-black">⛔ Ausfall / Ersatz</span>';
+    else if(depDelay>0 || arrDelayMin>0) delaySummary = `<span class="bg-amber-400 text-black rounded-full px-2.5 py-1 text-xs font-black">+${Math.max(depDelay,arrDelayMin)} Min</span>`;
+    else delaySummary = '<span class="bg-emerald-500 text-black rounded-full px-2.5 py-1 text-xs font-black">pünktlich</span>';
+
+    return `<div data-idx="${idx}" class="journeyCard group bg-[#14141A] border ${cancelled?'border-red-900':'border-zinc-800 hover:border-zinc-700'} rounded-[20px] overflow-hidden cursor-pointer transition">
+      <div class="p-4 sm:p-5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 flex-wrap">${legsIcons} <span class="text-xs text-zinc-500 font-semibold">• ${j.legs.filter(l=>!l.walking).length} Zug${j.legs.filter(l=>!l.walking).length>1?'e':''} • ${duration} • ${j.transfers??0} Umstieg${(j.transfers??0)!==1?'e':''}</span></div>
+            <div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+              <div>
+                <div class="text-[11px] font-bold tracking-widest text-zinc-500">ABFAHRT</div>
+                <div class="text-[22px] font-black leading-none">${fmtTime(depPlanned)}</div>
+                <div class="text-xs text-zinc-400 font-semibold truncate">${first?.origin?.name || fromStation?.name || ''} ${first?.departurePlatform?`• Gl. ${first.departurePlatform}`:''}</div>
+                ${first?.departureDelay?`<div class="mt-1">${delayBadge(Math.round(first.departureDelay/60))}</div>`:''}
+              </div>
+              <div class="text-center px-2">
+                <div class="text-[11px] font-bold text-zinc-500">— ${duration} —</div>
+                <div class="mt-1 h-[2px] w-full bg-zinc-800 rounded-full relative overflow-hidden">
+                  <div class="absolute inset-0 bg-gradient-to-r from-emerald-500 to-[#EC0000] opacity-80" style="width:${cancelled?'100%': depDelay>5?'70%': depDelay>0?'40%':'22%'}"></div>
+                </div>
+                <div class="text-[10px] font-mono text-zinc-500 mt-1">${new Date(depPlanned).toLocaleDateString('de-DE',{weekday:'short'})}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-[11px] font-bold tracking-widest text-zinc-500">ANKUNFT</div>
+                <div class="text-[22px] font-black leading-none">${fmtTime(arrPlanned)} <span class="text-xs font-bold text-zinc-500">${arrDelayMin>0?`+${arrDelayMin}`:''}</span></div>
+                <div class="text-xs text-zinc-400 font-semibold truncate">${last?.destination?.name || toStation?.name || ''} ${last?.arrivalPlatform?`• Gl. ${last.arrivalPlatform}`:''}</div>
+                ${arrDelay!=null && arrDelay!==0?`<div class="mt-1 flex justify-end">${delayBadge(Math.round(arrDelay/60))}</div>`:''}
+              </div>
+            </div>
+          </div>
+          <div class="shrink-0 text-right">
+            ${delaySummary}
+            <div class="mt-2 text-[11px] font-mono bg-zinc-900 border border-zinc-800 rounded-full px-2 py-1 text-zinc-300">${fmtTime(depPlanned)} → ${fmtTime(arrPlanned)}</div>
+          </div>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button data-action="details" data-idx="${idx}" class="bg-white text-black rounded-full px-4 py-2 text-xs font-bold hover:bg-zinc-100">Details ansehen →</button>
+          <button data-action="refresh" data-idx="${idx}" class="bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 text-xs font-bold hover:bg-zinc-800">↻ Live aktualisieren</button>
+          <button data-action="share" data-idx="${idx}" class="bg-zinc-900 border border-zinc-800 rounded-full px-3 py-2 text-xs font-bold hover:bg-zinc-800">⧉ Teilen</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // attach events
+  list.querySelectorAll('.journeyCard').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      const action = e.target.dataset.action;
+      const idx = parseInt(card.dataset.idx);
+      if(action==='refresh'){ refreshJourney(idx); e.stopPropagation(); return; }
+      if(action==='share'){ shareJourney(idx); e.stopPropagation(); return; }
+      openTripDetail(idx);
+    });
+  });
+  // auto-open first
+  if(lastJourneys.length) openTripDetail(0);
+}
+
+function productColor(product){
+  if(!product) return 'bg-zinc-800 text-white border border-zinc-700';
+  if(product==='nationalExpress' || product==='national') return 'bg-white text-black border border-zinc-200';
+  if(product==='regionalExpress' || product==='regional') return 'bg-[#EC0000] text-white';
+  if(product==='suburban') return 'bg-emerald-600 text-white';
+  if(product==='subway') return 'bg-blue-600 text-white';
+  if(product==='tram') return 'bg-amber-500 text-black';
+  if(product==='bus') return 'bg-zinc-700 text-white border border-zinc-600';
+  return 'bg-zinc-800 text-white border border-zinc-700';
+}
+
+function openTripDetail(idx){
+  const j = lastJourneys[idx];
+  if(!j) return;
+  // highlight
+  document.querySelectorAll('.journeyCard').forEach((c,i)=>{ c.classList.toggle('!border-white', i===idx); c.classList.toggle('!border-2', i===idx); });
+  const first = j.legs.find(l=>!l.walking) || j.legs[0];
+  const last = [...j.legs].reverse().find(l=>!l.walking) || j.legs[j.legs.length-1];
+  const content = $('#tripDetailContent');
+  const empty = $('#tripDetailEmpty');
+  empty.classList.add('hidden');
+  content.classList.remove('hidden');
+
+  let legsHtml = j.legs.map((leg, i)=>{
+    if(leg.walking){
+      const mins = leg.departure && leg.arrival ? Math.round((new Date(leg.arrival)-new Date(leg.departure))/60000) : '';
+      return `<div class="flex items-center gap-3 py-3 px-4 bg-zinc-900/50 border border-dashed border-zinc-800 rounded-2xl">
+        <span class="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-xs">🚶</span>
+        <span class="text-xs font-semibold text-zinc-400">${mins?`${mins} Min `:'· '}Umstieg / Fußweg</span>
+        ${leg.distance?`<span class="ml-auto text-xs font-mono text-zinc-500">${Math.round(leg.distance)} m</span>`:''}
+      </div>`;
+    }
+    const depDelay = leg.departureDelay!=null ? Math.round(leg.departureDelay/60) : 0;
+    const arrDelay = leg.arrivalDelay!=null ? Math.round(leg.arrivalDelay/60) : 0;
+    const cancelled = leg.cancelled;
+    const lineName = leg.line?.name || leg.line?.productName || 'Zug';
+    const product = leg.line?.product || '';
+    const direction = leg.direction || leg.destination?.name || '';
+    const remarks = (leg.remarks||[]).map(r=>r.text || r.summary).filter(Boolean).slice(0,2);
+
+    // stopovers if present
+    let stopsHtml='';
+    if(leg.stopovers && leg.stopovers.length){
+      stopsHtml = `<div class="mt-3 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800">
+        ${leg.stopovers.map((st, si)=>{
+          const sDelayDep = st.departureDelay!=null? Math.round(st.departureDelay/60):null;
+          const sDelayArr = st.arrivalDelay!=null? Math.round(st.arrivalDelay/60):null;
+          const isFirst = si===0, isLast=si===leg.stopovers.length-1;
+          return `<div class="flex items-center gap-3 px-3 py-2.5 ${isFirst||isLast?'bg-zinc-800/50':''}">
+            <span class="w-2 h-2 rounded-full ${sDelayArr||sDelayDep? 'bg-amber-400':'bg-emerald-500'} shrink-0"></span>
+            <span class="text-xs font-semibold flex-1 truncate">${st.stop?.name || st.station || ''}</span>
+            <span class="text-xs font-mono">${st.departure?fmtTime(st.departure): st.arrival?fmtTime(st.arrival):''}</span>
+            ${(sDelayDep||sDelayArr)?`<span class="text-[11px] font-black ${ (sDelayDep||sDelayArr)>5?'text-[#EC0000]':'text-amber-400'}">+${sDelayDep??sDelayArr}</span>`:''}
+            ${st.cancelled?'<span class="text-[10px] bg-red-600 text-white rounded-full px-2 py-1 font-black">ENTFÄLLT</span>':''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+
+    return `<div class="bg-zinc-900 border ${cancelled?'border-red-900 bg-red-950/20':'border-zinc-800'} rounded-2xl p-4">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="inline-flex ${productColor(product)} rounded-full px-3 py-1 text-xs font-black">${lineName}</span>
+        <span class="text-xs font-bold text-zinc-400">→ ${direction}</span>
+        ${cancelled?'<span class="bg-[#EC0000] text-white rounded-full px-2 py-1 text-[11px] font-black">AUSFALL</span>': delayBadge(depDelay)}
+      </div>
+      <div class="mt-3 grid grid-cols-[1fr_auto] gap-3">
+        <div>
+          <div class="text-[11px] font-bold tracking-widest text-zinc-500">AB • ${leg.origin?.name || ''}</div>
+          <div class="text-sm font-black">${fmtTime(leg.departure)} <span class="font-normal text-zinc-400">geplant ${fmtTime(leg.plannedDeparture||leg.departure)}</span></div>
+          <div class="mt-1 flex gap-2">${platformDisplay(leg.plannedDeparturePlatform, leg.departurePlatform)} ${leg.departureDelay!=null?`<span class="text-xs font-mono ${depDelay>0?'text-amber-400':'text-emerald-400'}">${depDelay>0?`+${depDelay} Min`: depDelay<0?`${depDelay} Min`: 'pünktlich'}</span>`:''}</div>
+        </div>
+        <div class="text-right">
+          <div class="text-[11px] font-bold tracking-widest text-zinc-500">AN • ${leg.destination?.name || ''}</div>
+          <div class="text-sm font-black">${fmtTime(leg.arrival)}</div>
+          <div class="mt-1 flex justify-end gap-2">${platformDisplay(leg.plannedArrivalPlatform, leg.arrivalPlatform)} ${leg.arrivalDelay!=null?`<span class="text-xs font-mono ${arrDelay>0?'text-amber-400':'text-emerald-400'}">${arrDelay>0?`+${arrDelay} Min`: arrDelay<0?`${arrDelay} Min`: 'pünktlich'}</span>`:''}</div>
+        </div>
+      </div>
+      ${remarks.length?`<div class="mt-3 flex flex-wrap gap-1.5">${remarks.map(r=>`<span class="bg-amber-400/15 border border-amber-400/20 text-amber-300 rounded-full px-2.5 py-1 text-[11px] font-semibold">⚠ ${r}</span>`).join('')}</div>`:''}
+      ${stopsHtml}
+      ${leg.tripId?`<button data-trip="${leg.tripId}" data-linename="${leg.line?.name||''}" class="mt-3 w-full bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-full py-2 text-xs font-bold">Alle Halte dieser Fahrt laden →</button>`:''}
+    </div>`;
+  }).join('<div class="flex justify-center py-1"><span class="w-[2px] h-4 bg-zinc-800"></span></div>');
+
+  content.innerHTML = `
+    <div class="mt-4 flex items-center justify-between">
+      <div class="text-xs font-mono bg-zinc-900 border border-zinc-800 rounded-full px-3 py-1">Ab ${fmtTime(first.departure,true)} • ${fmtDuration((new Date(last.arrival)-new Date(first.departure))/1000)}</div>
+      <button data-refresh="${idx}" class="text-xs font-bold bg-[#EC0000] hover:bg-[#c90000] text-white rounded-full px-3 py-1.5">↻ Live aktualisieren</button>
+    </div>
+    <div class="mt-4 space-y-2">${legsHtml}</div>
+    <div class="mt-4 bg-emerald-950/30 border border-emerald-900 rounded-2xl p-3 text-xs leading-5 text-emerald-200">
+      <b>Tipp:</b> Diese Verbindung wird live aus dem DB Navigator gespeist. Mit „Live aktualisieren“ holst du den neuesten Stand — inkl. Verspätungen, Gleiswechseln und Ausfällen.
+    </div>
+  `;
+  content.querySelectorAll('[data-trip]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      btn.textContent='Lade…';
+      await loadTrip(btn.dataset.trip, btn.dataset.linename, btn);
+    });
+  });
+  const refreshBtn = content.querySelector('[data-refresh]');
+  if(refreshBtn) refreshBtn.addEventListener('click', ()=>refreshJourney(idx));
+}
+
+async function loadTrip(tripId, lineName, btn){
+  try{
+    const url = `${API}/trips/${encodeURIComponent(tripId)}?lineName=${encodeURIComponent(lineName)}&language=de`;
+    const r = await fetch(url);
+    if(!r.ok) throw new Error(`Trip ${r.status}`);
+    const t = await r.json();
+    const stops = t.stopovers || [];
+    const html = `<div class="mt-3 bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden divide-y divide-zinc-800 max-h-[320px] overflow-y-auto">
+      ${stops.map(s=>{
+        const depDelay = s.departureDelay!=null?Math.round(s.departureDelay/60):null;
+        const arrDelay = s.arrivalDelay!=null?Math.round(s.arrivalDelay/60):null;
+        const d = depDelay??arrDelay;
+        return `<div class="flex items-center gap-3 px-3 py-2">
+          <span class="w-2 h-2 rounded-full ${s.cancelled?'bg-red-600': d&&d>0?'bg-amber-400':'bg-emerald-500'}"></span>
+          <span class="text-xs font-semibold flex-1">${s.stop?.name||''}</span>
+          <span class="text-xs font-mono">${s.arrival?fmtTime(s.arrival):''}${s.departure&&s.arrival?' • ':''}${s.departure?fmtTime(s.departure):''}</span>
+          ${d?`<span class="text-[11px] font-black ${d>5?'text-[#EC0000]':'text-amber-400'}">+${d}</span>`:''}
+        </div>`;
+      }).join('')}
+    </div>`;
+    btn.insertAdjacentHTML('afterend', html);
+    btn.remove();
+  }catch(e){
+    btn.textContent='Fehler beim Laden';
+    btn.disabled=true;
+  }
+}
+
+async function refreshJourney(idx){
+  const j = lastJourneys[idx];
+  if(!j || !j.refreshToken){ alert('Kein Refresh-Token für diese Verbindung (ggf. zu alt). Bitte neu suchen.'); return; }
+  // find card button to show loading
+  const card = document.querySelector(`.journeyCard[data-idx="${idx}"]`);
+  const btn = card?.querySelector('[data-action="refresh"]');
+  if(btn){ btn.textContent='↻ Aktualisiere…'; btn.disabled=true; }
+  try{
+    const r = await fetch(`${API}/journeys/${encodeURIComponent(j.refreshToken)}`);
+    if(!r.ok) throw new Error(`Refresh ${r.status}`);
+    const fresh = await r.json();
+    const updated = fresh.journey || fresh;
+    lastJourneys[idx] = updated;
+    renderJourneys();
+    openTripDetail(idx);
+  }catch(e){
+    alert('Live-Aktualisierung fehlgeschlagen: '+e.message);
+    if(btn){ btn.textContent='↻ Live aktualisieren'; btn.disabled=false; }
+  }
+}
+function shareJourney(idx){
+  const j=lastJourneys[idx];
+  const first=j.legs.find(l=>!l.walking), last=[...j.legs].reverse().find(l=>!l.walking);
+  const txt = `Bahnpilot Verbindung: ${fromStation?.name} → ${toStation?.name}\nAb ${fmtTime(first.departure,true)} • An ${fmtTime(last.arrival,true)} • ${fmtDuration((new Date(last.arrival)-new Date(first.departure))/1000)}\nZüge: ${j.legs.filter(l=>!l.walking).map(l=>l.line?.name).join(', ')}\nLive: ${location.href}`;
+  if(navigator.clipboard) navigator.clipboard.writeText(txt);
+  alert('In Zwischenablage kopiert:\n\n'+txt);
+}
+
+// Departures board
+async function fetchDepartures(){
+  const q = $('#inputStation').value.trim();
+  if(!q && !stationForBoard){ alert('Bitte Bahnhof eingeben'); return; }
+  let stationId = stationForBoard?.id;
+  if(!stationId){
+    const s = await resolveStationByQuery(q);
+    if(!s){ alert('Bahnhof nicht gefunden'); return; }
+    stationForBoard=s; stationId=s.id;
+  }
+  $('#btnDepSearch').textContent='Lädt…'; $('#btnDepSearch').disabled=true;
+  $('#departuresEmpty').classList.add('hidden');
+  try{
+    const r = await fetch(`${API}/stops/${encodeURIComponent(stationId)}/departures?duration=60&results=14&language=de`);
+    if(!r.ok) throw new Error(`${r.status}`);
+    const deps = await r.json();
+    // The API returns {departures: []} or array depending on version; handle both
+    const list = Array.isArray(deps) ? deps : deps.departures || deps.departures===undefined && deps.length!==undefined?deps: deps;
+    // Actually v6 returns array? We check both.
+    const departures = Array.isArray(list) ? list : (deps.departures || []);
+    renderDepartures(departures, stationForBoard?.name || q);
+    updateStats(departures);
+  }catch(e){
+    $('#departuresList').innerHTML=`<div class="bg-red-950/30 border border-red-900 rounded-2xl p-4 text-sm text-red-200">Fehler: ${e.message} — Versuch es erneut oder anderen Bahnhof.</div>`;
+  }finally{
+    $('#btnDepSearch').textContent='Abfragen'; $('#btnDepSearch').disabled=false;
+  }
+}
+function renderDepartures(deps, stationName){
+  const meta = $('#departuresMeta');
+  meta.classList.remove('hidden');
+  $('#depMetaLeft').textContent = `${stationName} • ${deps.length} Abfahrten • Stand ${new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}`;
+  const listEl = $('#departuresList');
+  if(!deps.length){
+    listEl.innerHTML='<div class="text-sm text-zinc-500 text-center py-6">Keine Abfahrten in den nächsten 60 Minuten.</div>';
+    return;
+  }
+  listEl.innerHTML = deps.map(d=>{
+    const delay = d.delay!=null ? Math.round(d.delay/60) : (d.departureDelay!=null? Math.round(d.departureDelay/60):0);
+    const cancelled = d.cancelled;
+    const when = d.when || d.plannedWhen || d.departure;
+    const planned = d.plannedWhen || d.scheduledDeparture || d.departure;
+    const plat = d.platform || d.plannedPlatform;
+    const platPlanned = d.plannedPlatform;
+    const line = d.line?.name || d.line?.productName || d.line?.product || 'Zug';
+    const dest = d.destination?.name || d.direction || d.provenance || '—';
+    const remarks = (d.remarks||[]).slice(0,1).map(r=>r.text).join(' • ');
+    return `<div class="bg-zinc-900 border ${cancelled?'border-red-900 bg-red-950/20':'border-zinc-800'} rounded-2xl p-3 flex items-center gap-3">
+      <div class="w-16 text-center shrink-0">
+        <div class="text-sm font-black font-mono">${fmtTime(when)}</div>
+        ${planned && when!==planned?`<div class="text-[11px] text-zinc-500 line-through">${fmtTime(planned)}</div>`:''}
+        ${delay?`<div class="mt-1 ${delay>0?'bg-amber-400 text-black':'bg-emerald-500 text-black'} rounded-full px-1.5 py-0.5 text-[11px] font-black">${delay>0?'+'+delay:delay}’</div>`:''}
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="bg-white text-black rounded-full px-2.5 py-1 text-xs font-black">${line}</span>
+          <span class="text-sm font-bold truncate">→ ${dest}</span>
+          ${cancelled?'<span class="bg-[#EC0000] text-white rounded-full px-2 py-1 text-[10px] font-black">ENTFÄLLT</span>':''}
+        </div>
+        <div class="text-xs text-zinc-400 truncate mt-1">${d.provenance ? `von ${d.provenance} • `:''}${remarks|| (d.stop?.name||'')}</div>
+      </div>
+      <div class="text-right shrink-0">
+        ${plat? platformDisplay(platPlanned||plat, d.platform?d.platform:plat) : '<span class="text-xs text-zinc-500">Gl. —</span>'}
+        <div class="text-[11px] font-mono text-zinc-500 mt-1">${d.tripId? '#'+d.tripId.slice(0,6):''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  // mini board also
+  if(stationName.includes('Hannover')){
+    updateMiniBoard(deps.slice(0,2));
+  }
+}
+function updateStats(deps){
+  if(!deps.length) return;
+  const delayed = deps.filter(d=> (d.delay||d.departureDelay||0) >120).length;
+  const total = deps.length;
+  const punctual = Math.max(0, Math.round((1 - delayed/total)*100));
+  $('#statDepartures').textContent = total;
+  $('#statDelayed').textContent = delayed;
+  $('#statPunctual').textContent = punctual+'%';
+}
+function updateMiniBoard(deps){
+  const el=$('#miniBoard');
+  if(!deps.length) return;
+  el.innerHTML = deps.slice(0,2).map(d=>{
+    const delay = d.delay!=null? Math.round(d.delay/60): (d.departureDelay?Math.round(d.departureDelay/60):0);
+    const line=d.line?.name||'?';
+    const dest=d.destination?.name||d.direction||'';
+    if(delay===0) return `<div class="flex justify-between items-center bg-white text-black rounded-xl px-3 py-2.5 font-semibold"><span>${line} → ${dest}</span><span class="font-mono text-emerald-700">${fmtTime(d.when||d.plannedWhen)} <span class="text-emerald-600 text-xs">pünktlich</span></span></div>`;
+    else return `<div class="flex justify-between items-center bg-black/30 rounded-xl px-3 py-2.5 font-semibold border border-white/10"><span>${line} → ${dest}</span><span class="font-mono">${fmtTime(d.when||d.plannedWhen)} <span class="text-amber-300 text-xs">+${delay}</span></span></div>`;
+  }).join('');
+}
+$('#btnDepSearch').addEventListener('click', fetchDepartures);
+$('#btnDepRefresh').addEventListener('click', fetchDepartures);
+$('#inputStation').addEventListener('keydown', e=>{ if(e.key==='Enter') fetchDepartures(); });
+$$('.quickStation').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    stationForBoard={id:b.dataset.station, name:b.textContent};
+    $('#inputStation').value=b.textContent;
+    fetchDepartures();
+  });
+});
+
+// Journey search events
+$('#btnSearch').addEventListener('click', searchJourneys);
+$('#inputFrom').addEventListener('keydown', e=>{ if(e.key==='Enter') { $('#inputTo').focus(); }});
+$('#inputTo').addEventListener('keydown', e=>{ if(e.key==='Enter') searchJourneys(); });
+$('#inputWhen').addEventListener('keydown', e=>{ if(e.key==='Enter') searchJourneys(); });
+$('#btnRefreshAll').addEventListener('click', ()=>{
+  lastJourneys.forEach((_,i)=> refreshJourney(i));
+});
+$('#btnHannover').addEventListener('click', ()=>{
+  stationForBoard={id:'8000152', name:'Hannover Hbf'};
+  $('#inputStation').value='Hannover Hbf';
+  activateTab('departures');
+  fetchDepartures();
+  window.scrollTo({top:0, behavior:'smooth'});
+});
+$('#btnFromNear').addEventListener('click', async ()=>{
+  if(!navigator.geolocation){ alert('Geolocation nicht verfügbar'); return; }
+  $('#btnFromNear').textContent='…';
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    try{
+      const r=await fetch(`${API}/locations/nearby?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&results=5`);
+      const data=await r.json();
+      const nearest=data[0];
+      if(nearest){ fromStation={id:nearest.id, name:nearest.name}; $('#inputFrom').value=nearest.name; }
+    }catch(e){ alert('Fehler: '+e.message); }
+    $('#btnFromNear').textContent='◎';
+  }, ()=>{ alert('Standort nicht erlaubt'); $('#btnFromNear').textContent='◎'; });
+});
+
+// Example filler
+window.fillExample=(a,b)=>{
+  $('#inputFrom').value=a; $('#inputTo').value=b;
+  resolveStationByQuery(a).then(s=>{ fromStation=s; });
+  resolveStationByQuery(b).then(s=>{ toStation=s; });
+  setTimeout(searchJourneys, 400);
+};
+
+// Nearby stations on load for Hannover demo
+async function initHannoverPreview(){
+  try{
+    const r=await fetch(`${API}/stops/8000152/departures?duration=30&results=5&language=de`);
+    if(r.ok){
+      const data=await r.json();
+      const deps = Array.isArray(data)?data: data.departures||[];
+      if(deps.length){ updateStats(deps); updateMiniBoard(deps.slice(0,2)); }
+    }
+  }catch(e){}
+}
+initHannoverPreview();
+
+// auto-search if params
+const params = new URLSearchParams(location.search);
+if(params.get('from') && params.get('to')){
+  $('#inputFrom').value=params.get('from');
+  $('#inputTo').value=params.get('to');
+  searchJourneys();
+}
+
+// PWA: Service Worker & Capacitor helpers
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').then(()=> console.log('Bahnpilot SW ready')).catch(()=>{});
+}
+// Android haptics / statusbar if in Capacitor
+let isNative = window.Capacitor?.isNativePlatform?.();
+if(isNative){
+  document.documentElement.classList.add('capacitor-native');
+  // Pull-to-refresh hint in native
+  console.log('Bahnpilot läuft als native APK auf Android');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-lock.yaml
+yarn.lock
+
+# Capacitor
+android/app/build/
+android/.gradle/
+android/build/
+android/app/release/
+android/app/debug/
+android/local.properties
+android/capacitor-cordova-android-plugins/
+ios/
+
+# Env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build
+dist/
+build/
+out/
+.next/
+.coverage/
+
+# Arena cache dirs (auto excluded but keep)
+.arena/
+.cache/
